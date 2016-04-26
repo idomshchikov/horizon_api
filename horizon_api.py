@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import JSON
 # configuration
 REPOSITORY_PATH = '/Users/maestro/Documents/work/temp_git'
 app = Flask(__name__)
-app.debug = True
+app.debug = False
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:@localhost/horizondb'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config.from_object(__name__)
@@ -212,4 +212,4 @@ def create_classes():
     db.session.commit()
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')
