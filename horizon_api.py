@@ -132,14 +132,12 @@ class GitHook(Resource):
             name = el.split('/')
             name = os.path.splitext(name[1])[0]
             classes = []
-            templates = []
             for key in data:
-                cls = Class(key, json.dumps(data[key]))
+                cls = Class(key, json.dumps(data[key]), Template.query.filter_by(name=key))
                 db.session.add(cls)
                 db.session.commit()
                 classes.append(cls)
-                templates.append(Template.query.filter_by(name=key).first())
-            role = Role(name, el, classes, templates)
+            role = Role(name, el, classes)
             db.session.add(role)
             db.session.commit()
         for el in removed_files:
@@ -214,7 +212,7 @@ class Template(db.Model):
     file_name = db.Column(db.String(54), nullable=True)
     content = db.Column(JSON, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
-    class_id = db.Column(db.Integer, db.ForeignKey('class.id'))
+    class_id = db.Column(db.Integer, db.ForeignKey('classe.id'))
 
     def __init__(self, name, file_name, content):
         self.name = name
