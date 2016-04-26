@@ -59,15 +59,19 @@ class Roles(Resource):
 class ClassDetails(Resource):
     def get(self, role_id, **kwargs):
         role = Role.query.get(role_id)
-        cls = role.classes[0]
-        response = {}
-        response['name'] = cls.name
-        response['id'] = cls.id
-        response['fields'] = []
-        cls_content = json.loads(cls.content)
-        for el in cls_content:
-            fields = {'name': el, 'value': cls_content[el]}
-            response['fields'].append(fields)
+        cls = role.classes
+        templates = role.templates
+        response = []
+        for el in cls:
+            params = {}
+            params['name'] = el.name
+            params['id'] = el.id
+            params['fields'] = []
+            cls_content = json.loads(el.content)
+            for el in cls_content:
+                fields = {'name': el, 'value': cls_content[el]}
+                params['fields'].append(fields)
+            response.append(params)
         return response, 200
 
 
@@ -186,13 +190,11 @@ class Role(db.Model):
     name = db.Column(db.String(54), unique=True, nullable=False)
     file_name = db.Column(db.String(54), unique=True, nullable=True)
     classes = db.relationship('Class', backref='role', lazy='dynamic')
-    templates = db.relationship('Template', backref='role', lazy='dynamic')
 
-    def __init__(self, name, file_name, classes, templates):
+    def __init__(self, name, file_name, classes):
         self.name = name
         self.file_name = file_name
         self.classes = classes
-        self.templates = templates
 
 
 class Class(db.Model):
@@ -201,10 +203,12 @@ class Class(db.Model):
     name = db.Column(db.String(54), unique=True, nullable=False)
     content = db.Column(JSON, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+    templates = db.relationship('Template', backref='class', lazy='dynamic')
 
-    def __init__(self, name, content):
+    def __init__(self, name, content, templates):
         self.name = name
         self.content = content
+        self.templates = templates
 
 
 class Template(db.Model):
@@ -214,6 +218,7 @@ class Template(db.Model):
     file_name = db.Column(db.String(54), nullable=True)
     content = db.Column(JSON, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+    class_id = db.Column(db.Integer, db.ForeignKey('class.id'))
 
     def __init__(self, name, file_name, content):
         self.name = name
