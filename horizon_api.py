@@ -212,7 +212,7 @@ class Template(db.Model):
     file_name = db.Column(db.String(54), nullable=True)
     content = db.Column(JSON, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
-    class_id = db.Column(db.Integer, db.ForeignKey('classe.id'))
+    class_id = db.Column(db.Integer, db.ForeignKey('classes.id'))
 
     def __init__(self, name, file_name, content):
         self.name = name
