@@ -36,33 +36,32 @@ class Roles(Resource):
     def get(self, **kwargs):
         return RoleYaml.query.all()
 
-    def post(self, *kwargs):
+    def post(self, **kwargs):
         return 201
 
 
 class RoleDetails(Resource):
-        def get(self, role_id, **kwargs):
-            role = RoleYaml.query.get(role_id)
-            responce_body = []
+    def get(self, role_id, **kwargs):
+        role = RoleYaml.query.get(role_id)
+        responce_body = []
+        for item in role.classes:
+            yamls = {}
             params = []
-            for item in role.classes:
-                yamls = {}
-                data = json.loads(item.content)
-                for key in data:
-                    elements = {'name': key, 'value': data[key]['value'], 'type': data[key]['type'],
-                                'options': {'lable': data[key]['lable'], }}
-                    params.append(elements)
-                yamls['name'] = item.name
-                yamls['fields'] = params
-                responce_body.append(yamls)
-            return responce_body, 200
+            data = json.loads(item.content)
+            for key in data:
+                elements = {'name': key, 'value': data[key]['value'], 'type': data[key]['type'],
+                            'options': {'lable': data[key]['lable'], }}
+                params.append(elements)
+            yamls['name'] = item.name
+            yamls['fields'] = params
+            responce_body.append(yamls)
+        return responce_body, 200
 
-        def put(self, role_id, **kwargs):
-            return 201
+    def put(self, role_id, **kwargs):
+        return 201
 
 
 class GitHook(Resource):
-
     def _from_yaml_to_dict(self, file_name):
         with open(REPOSITORY_PATH + '/' + file_name) as file:
                 data = yaml.safe_load(file)
