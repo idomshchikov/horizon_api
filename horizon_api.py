@@ -1,4 +1,3 @@
-# all the imports
 import yaml
 import json
 import os
@@ -14,12 +13,9 @@ from sqlalchemy.dialects.postgresql import JSON
 
 
 # configuration
-REPOSITORY_PATH = '/Users/maestro/Documents/work/temp_git'
 app = Flask(__name__)
-app.debug = True
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:@localhost/horizondb'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config.from_object(__name__)
+app.config.from_object('local_settings.Config')
+config = app.config
 db = SQLAlchemy(app)
 api = Api(app)
 
@@ -36,10 +32,10 @@ class Roles(Resource):
 
     def post(self, **kwargs):
         data = request.get_json()
-        with open(REPOSITORY_PATH + '/roles/', 'w+') as file:
+        with open(config['REPOSITORY_PATH'] + '/roles/', 'w+') as file:
             yaml.dump(data, file)
         file.close()
-        repository = Repo(REPOSITORY_PATH)
+        repository = Repo(config['REPOSITORY_PATH'])
         index = repository.index
         untracked_files = repository.untracked_files
         for el in untracked_files:
@@ -101,7 +97,7 @@ class RoleDetails(Resource):
     def put(self, role_id, **kwargs):
         data = request.get_json()
         role = RoleYaml.query.get(role_id)
-        with open(REPOSITORY_PATH + '/roles/', 'w+') as file:
+        with open(config['REPOSITORY_PATH'] + '/roles/', 'w+') as file:
             yaml.dump(data, file)
         file.close()
         role.content = data
@@ -112,7 +108,7 @@ class RoleDetails(Resource):
 
 class GitHook(Resource):
     def _from_yaml_to_dict(self, file_name):
-        with open(REPOSITORY_PATH + '/' + file_name) as file:
+        with open(config['REPOSITORY_PATH'] + '/' + file_name) as file:
                 data = yaml.safe_load(file)
         file.close()
         return data
@@ -127,7 +123,7 @@ class GitHook(Resource):
             removed_files.extend(el['removed'])
             modified_files.extend(el['modified'])
 
-        repository = Repo(REPOSITORY_PATH)
+        repository = Repo(config['REPOSITORY_PATH'])
         origin = repository.remotes.origin
         origin.pull()
 
@@ -234,17 +230,17 @@ api.add_resource(RoleDetails, '/roles/<role_id>')
 
 def create_templates():
     db.create_all()
-    with open(REPOSITORY_PATH + '/classes/apache.yaml') as file:
+    with open(config['REPOSITORY_PATH'] + '/classes/apache.yaml') as file:
         data = yaml.safe_load(file)
     file.close()
     content = json.dumps(data)
     apache = Template('apache', 'apache.yaml', content)
-    with open(REPOSITORY_PATH + '/classes/ntp.yaml') as file:
+    with open(config['REPOSITORY_PATH'] + '/classes/ntp.yaml') as file:
         data = yaml.safe_load(file)
     file.close()
     content = json.dumps(data)
     ntp = Template('ntp', 'ntp.yaml', content)
-    with open(REPOSITORY_PATH + '/classes/mysql_server.yaml') as file:
+    with open(config['REPOSITORY_PATH'] + '/classes/mysql_server.yaml') as file:
         data = yaml.safe_load(file)
     file.close()
     content = json.dumps(data)
@@ -254,4 +250,4 @@ def create_templates():
     db.session.commit()
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host=config['HOST'])
