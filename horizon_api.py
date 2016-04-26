@@ -14,16 +14,14 @@ from sqlalchemy.dialects.postgresql import JSON
 
 
 # configuration
-SECRET_KEY = 'development key'
 REPOSITORY_PATH = '/Users/maestro/Documents/work/temp_git'
-DEBUG = True
 app = Flask(__name__)
+app.debug = True
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:@localhost/horizondb'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config.from_object(__name__)
 db = SQLAlchemy(app)
 api = Api(app)
-
 
 models_templates = {
     'id': fields.String,
@@ -37,7 +35,25 @@ class Roles(Resource):
         return RoleYaml.query.all()
 
     def post(self, **kwargs):
-        return 201
+        data = request.get_json()
+        with open(REPOSITORY_PATH + '/roles/', 'w+') as file:
+            yaml.dump(data, file)
+        file.close()
+        repository = Repo(REPOSITORY_PATH)
+        index = repository.index
+        untracked_files = repository.untracked_files
+        for el in untracked_files:
+            index.add(el)
+        index.commit('new role file')
+        origin = repository.remotes.origin
+        origin.push()
+        classes = []
+        for key in data:
+                classes.append(ClassYaml.query.filter_by(name=key).first())
+        role = RoleYaml('name', 'file.name', data, classes)
+        id = db.session.add(role)
+        db.session.commit()
+        return id, 201
 
 
 class Classes(Resource):
@@ -78,8 +94,15 @@ class RoleDetails(Resource):
         return responce_body, 200
 
     def put(self, role_id, **kwargs):
-
-        return 201
+        data = request.get_json()
+        role = RoleYaml.query.get(role_id)
+        with open(REPOSITORY_PATH + '/roles/', 'w+') as file:
+            yaml.dump(data, file)
+        file.close()
+        role.content = data
+        role.classes = []
+        db.session.commit()
+        return role.id, 200
 
 
 class GitHook(Resource):
@@ -189,4 +212,4 @@ def create_classes():
     db.session.commit()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
