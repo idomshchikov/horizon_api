@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import JSON
 # configuration
 REPOSITORY_PATH = '/Users/maestro/Documents/work/temp_git'
 app = Flask(__name__)
-app.debug = False
+app.debug = True
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://postgres:@localhost/horizondb'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config.from_object(__name__)
@@ -32,7 +32,7 @@ models_templates = {
 class Roles(Resource):
     @marshal_with(models_templates)
     def get(self, **kwargs):
-        return RoleYaml.query.all()
+        return Role.query.all()
 
     def post(self, **kwargs):
         data = request.get_json()
@@ -56,24 +56,25 @@ class Roles(Resource):
         return id, 201
 
 
-class Classes(Resource):
-    @marshal_with(models_templates)
-    def get(self, **kwargs):
-        return ClassYaml.query.all()
-
-
 class ClassDetails(Resource):
-    def get(self, class_id, **kwargs):
-        cls = ClassYaml.query.get(class_id)
-        content = json.loads(cls.content)
-        body = [{'id': cls.id}]
-        params = []
-        for key in content:
-            elements = {'name': key, 'value': content[key]['value'], 'type': content[key]['type'],
-                            'options': {'lable': content[key]['lable'], }}
-            params.append(elements)
-        body.append({'fields': params})
-        return body, 200
+    def get(self, role_id, **kwargs):
+        role = Role.query.get(role_id)
+        cls = role.classes[0]
+        response = {}
+        response['name'] = cls.name
+        response['id'] = cls.id
+        response['fields'] = []
+        cls_content = json.loads(cls.content)
+        for el in cls_content:
+            fields = {'name': el, 'value': cls_content[el]}
+            response['fields'].append(fields)
+        return response, 200
+
+
+class Classes(Resource):
+    def get(self, **kwargs):
+
+        return 200
 
 
 class RoleDetails(Resource):
@@ -131,24 +132,20 @@ class GitHook(Resource):
             name = el.split('/')
             name = os.path.splitext(name[1])[0]
             classes = []
+            templates = []
             for key in data:
-                classes.append(ClassYaml.query.filter_by(name=key).first())
-            content = json.dumps(data)
-            role = RoleYaml(name, el, content, classes)
+                cls = Class(key, json.dumps(data[key]))
+                db.session.add(cls)
+                db.session.commit()
+                classes.append(cls)
+                templates.append(Template.query.filter_by(name=key).first())
+            role = Role(name, el, classes, templates)
             db.session.add(role)
             db.session.commit()
         for el in removed_files:
-            role = RoleYaml.query.filter_by(file_name=el).first()
-            db.session.delete(role)
-            db.session.commit()
+            pass
         for el in modified_files:
-            data = self._from_yaml_to_dict(el)
-            role = RoleYaml.query.filter_by(file_name=el).first()
-            role.classes = []
-            for key in data:
-                role.classes.append(ClassYaml.query.filter_by(name=key).first())
-            role.content = json.dumps(data)
-            db.session.commit()
+           pass
 
         app.logger.debug([el.name for el in RoleYaml.query.all()])
         return request.get_json(), 200
@@ -183,33 +180,73 @@ class ClassYaml(db.Model):
         self.content = content
 
 
+class Role(db.Model):
+    __tablename__ = 'roles'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(54), unique=True, nullable=False)
+    file_name = db.Column(db.String(54), unique=True, nullable=True)
+    classes = db.relationship('Class', backref='role', lazy='dynamic')
+    templates = db.relationship('Template', backref='role', lazy='dynamic')
+
+    def __init__(self, name, file_name, classes, templates):
+        self.name = name
+        self.file_name = file_name
+        self.classes = classes
+        self.templates = templates
+
+
+class Class(db.Model):
+    __tablename__ = 'classes'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(54), unique=True, nullable=False)
+    content = db.Column(JSON, nullable=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+
+    def __init__(self, name, content):
+        self.name = name
+        self.content = content
+
+
+class Template(db.Model):
+    __tablename__ = 'templates'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(54), unique=True, nullable=False)
+    file_name = db.Column(db.String(54), nullable=True)
+    content = db.Column(JSON, nullable=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+
+    def __init__(self, name, file_name, content):
+        self.name = name
+        self.file_name = file_name
+        self.content = content
+
 api.add_resource(GitHook, '/repository')
 api.add_resource(Roles, '/roles')
 api.add_resource(Classes, '/classes')
-api.add_resource(ClassDetails, '/classes/<class_id>')
+api.add_resource(ClassDetails, '/roles/<role_id>/classes')
 api.add_resource(RoleDetails, '/roles/<role_id>')
 
 
-def create_classes():
+def create_templates():
     db.create_all()
     with open(REPOSITORY_PATH + '/classes/apache.yaml') as file:
         data = yaml.safe_load(file)
     file.close()
     content = json.dumps(data)
-    apache = ClassYaml('apache', 'apache.yaml', content)
+    apache = Template('apache', 'apache.yaml', content)
     with open(REPOSITORY_PATH + '/classes/ntp.yaml') as file:
         data = yaml.safe_load(file)
     file.close()
     content = json.dumps(data)
-    ntp = ClassYaml('ntp', 'ntp.yaml', content)
+    ntp = Template('ntp', 'ntp.yaml', content)
     with open(REPOSITORY_PATH + '/classes/mysql_server.yaml') as file:
         data = yaml.safe_load(file)
     file.close()
     content = json.dumps(data)
-    mysql = ClassYaml('mysql_server', 'mysql_server.yaml', content)
+    mysql = Template('mysql_server', 'mysql_server.yaml', content)
 
     db.session.add_all([apache, ntp, mysql])
     db.session.commit()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
+    app.run()
