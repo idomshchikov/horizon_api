@@ -25,19 +25,39 @@ db = SQLAlchemy(app)
 api = Api(app)
 
 
-roles_json_templates = {
+models_templates = {
     'id': fields.String,
     'name': fields.String,
 }
 
 
 class Roles(Resource):
-    @marshal_with(roles_json_templates)
+    @marshal_with(models_templates)
     def get(self, **kwargs):
         return RoleYaml.query.all()
 
     def post(self, **kwargs):
         return 201
+
+
+class Classes(Resource):
+    @marshal_with(models_templates)
+    def get(self, **kwargs):
+        return ClassYaml.query.all()
+
+
+class ClassDetails(Resource):
+    def get(self, class_id, **kwargs):
+        cls = ClassYaml.query.get(class_id)
+        content = json.loads(cls.content)
+        body = [{'id': cls.id}]
+        params = []
+        for key in content:
+            elements = {'name': key, 'value': content[key]['value'], 'type': content[key]['type'],
+                            'options': {'lable': content[key]['lable'], }}
+            params.append(elements)
+        body.append({'fields': params})
+        return body, 200
 
 
 class RoleDetails(Resource):
@@ -58,6 +78,7 @@ class RoleDetails(Resource):
         return responce_body, 200
 
     def put(self, role_id, **kwargs):
+
         return 201
 
 
@@ -141,6 +162,8 @@ class ClassYaml(db.Model):
 
 api.add_resource(GitHook, '/repository')
 api.add_resource(Roles, '/roles')
+api.add_resource(Classes, '/classes')
+api.add_resource(ClassDetails, '/classes/<class_id>')
 api.add_resource(RoleDetails, '/roles/<role_id>')
 
 
