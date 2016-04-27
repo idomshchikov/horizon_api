@@ -56,7 +56,6 @@ class ClassDetails(Resource):
     def get(self, role_id, **kwargs):
         role = Role.query.get(role_id)
         cls = role.classes
-        templates = role.templates
         response = []
         for el in cls:
             params = {}
@@ -64,9 +63,13 @@ class ClassDetails(Resource):
             params['id'] = el.id
             params['fields'] = []
             cls_content = json.loads(el.content)
-            for el in cls_content:
-                fields = {'name': el, 'value': cls_content[el]}
+            for it in cls_content:
+                fields = {'name': it, 'value': cls_content[it]}
+                fields['options'] = {}
+                d = json.loads(el.templates[0].content)
+                fields['options']['lable'] = d[it]['lable']
                 params['fields'].append(fields)
+
             response.append(params)
         return response, 200
 
@@ -145,7 +148,7 @@ class GitHook(Resource):
         for el in modified_files:
            pass
 
-        app.logger.debug([el.name for el in RoleYaml.query.all()])
+        app.logger.debug([el.name for el in Role.query.all()])
         return request.get_json(), 200
 
 
