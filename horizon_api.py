@@ -63,9 +63,7 @@ class Roles(Resource):
             cls = Class(key, json.dumps(data_map[key]), Template.query.filter_by(name=key).first())
             db.session.add(cls)
             classes.append(cls)
-        if role.classes is None:
-            role.classes = []
-        role.classes.extend(classes)
+        role.classes = classes
         db.session.commit()
 
         return role.id, 200
