@@ -48,11 +48,11 @@ class Classes(Resource):
     def post(self, role_id, template_id):
         role = Role.query.get(role_id)
         template = Template.query.get(template_id)
-        cls_content = []
+        cls_content = {}
         template_content = json.loads(template.content)
         for key in template_content:
-            cls_content.append({key: template_content[key]['default']})
-        cls = Class(template.name,  cls_content, [template])
+            cls_content[key] = template_content[key]['default']
+        cls = Class(template.name, json.dumps(cls_content), [template])
         db.session.add(cls)
         if role.classes is None:
             role.classes = []
