@@ -60,6 +60,13 @@ class Classes(Resource):
         db.session.commit()
         return cls, 201
 
+    def delete(self, class_id, **kwargs):
+        #cls = Class.query.get(class_id)
+        cls = Class.query.filter_by(id=class_id).first_or_404()
+        db.session.delete(cls)
+        db.session.commit()
+        return 204
+
 
 class ClassDetails(Resource):
     def get(self, role_id, **kwargs):
@@ -234,7 +241,7 @@ class Template(db.Model):
 api.add_resource(GitHook, '/repository')
 api.add_resource(Roles, '/roles')
 api.add_resource(Templates, '/templates')
-api.add_resource(Classes, '/roles/<role_id>/add_class/<template_id>')
+api.add_resource(Classes, '/roles/<role_id>/add_class/<template_id>', '/classes/<class_id>')
 api.add_resource(ClassDetails, '/roles/<role_id>/classes')
 api.add_resource(RoleDetails, '/roles/<role_id>')
 
