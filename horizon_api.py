@@ -43,6 +43,24 @@ class Roles(Resource):
         return Role.query.get(role.id), 201
 
 
+class Classes(Resource):
+    @marshal_with(models_templates)
+    def post(self, role_id, template_id):
+        role = Role.query.get(role_id)
+        template = Template.query.get(template_id)
+        cls_content = []
+        template_content = json.loads(template.content)
+        for key in template_content:
+            cls_content.append({key: template_content[key]['default']})
+        cls = Class(template.name,  cls_content, [template])
+        db.session.add(cls)
+        if role.classes is None:
+            role.classes = []
+        role.classes.append(cls)
+        db.session.commit()
+        return cls, 201
+
+
 class ClassDetails(Resource):
     def get(self, role_id, **kwargs):
         role = Role.query.get(role_id)
@@ -188,7 +206,7 @@ class Role(db.Model):
 class Class(db.Model):
     __tablename__ = 'classes'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(54), unique=True, nullable=False)
+    name = db.Column(db.String(54), nullable=False)
     content = db.Column(JSON, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
     templates = db.relationship('Template', backref='class', lazy='dynamic')
@@ -216,6 +234,7 @@ class Template(db.Model):
 api.add_resource(GitHook, '/repository')
 api.add_resource(Roles, '/roles')
 api.add_resource(Templates, '/templates')
+api.add_resource(Classes, '/roles/<role_id>/add_class/<template_id>')
 api.add_resource(ClassDetails, '/roles/<role_id>/classes')
 api.add_resource(RoleDetails, '/roles/<role_id>')
 
