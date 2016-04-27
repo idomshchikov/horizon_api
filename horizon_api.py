@@ -65,10 +65,10 @@ class ClassDetails(Resource):
         return response, 200
 
 
-class Classes(Resource):
+class Templates(Resource):
+    @marshal_with(models_templates)
     def get(self, **kwargs):
-
-        return 200
+        return Template.query.all()
 
 
 class RoleDetails(Resource):
@@ -215,7 +215,7 @@ class Template(db.Model):
 
 api.add_resource(GitHook, '/repository')
 api.add_resource(Roles, '/roles')
-api.add_resource(Classes, '/classes')
+api.add_resource(Templates, '/templates')
 api.add_resource(ClassDetails, '/roles/<role_id>/classes')
 api.add_resource(RoleDetails, '/roles/<role_id>')
 
