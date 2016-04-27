@@ -42,6 +42,19 @@ class Roles(Resource):
         db.session.commit()
         return Role.query.get(role.id), 201
 
+    def put(self, role_id, **kwargs):
+        role = Role.query.filter_by(id=role_id).first_or_404()
+        data = request.get_json()
+        data_map = {}
+        for el in data:
+            data_map[el] = data[el]['fields']
+        file_content = data_map
+        with open(config['REPOSITORY_PATH'] + '/roles/' + role.name + '.yaml', 'w+') as file:
+            yaml.safe_dump(file_content, file)
+        file.close()
+
+        return data_map, 200
+
 
 class Classes(Resource):
     @marshal_with(models_templates)
@@ -82,6 +95,7 @@ class ClassDetails(Resource):
                 fields = {'name': it, 'value': cls_content[it]}
                 fields['options'] = {}
                 d = json.loads(el.templates[0].content)
+                fields['type'] = d[it]['type']
                 fields['options']['lable'] = d[it]['lable']
                 params['fields'].append(fields)
 
@@ -180,7 +194,7 @@ class Template(db.Model):
         self.content = content
 
 api.add_resource(GitHook, '/repository')
-api.add_resource(Roles, '/roles')
+api.add_resource(Roles, '/roles', '/roles/<role_id>')
 api.add_resource(Templates, '/templates')
 api.add_resource(Classes, '/roles/<role_id>/add_class/<template_id>', '/classes/<class_id>')
 api.add_resource(ClassDetails, '/roles/<role_id>/classes')
