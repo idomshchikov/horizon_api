@@ -8,6 +8,7 @@ from flask_restful import Resource
 from flask_restful import Api
 from flask_restful import fields
 from flask_restful import marshal_with
+from flask_restful import reqparse
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSON
 
@@ -24,32 +25,22 @@ models_templates = {
     'name': fields.String,
 }
 
+parser = reqparse.RequestParser()
+parser.add_argument('name')
+
 
 class Roles(Resource):
     @marshal_with(models_templates)
     def get(self, **kwargs):
         return Role.query.all()
 
+    @marshal_with(models_templates)
     def post(self, **kwargs):
         data = request.get_json()
-        with open(config['REPOSITORY_PATH'] + '/roles/', 'w+') as file:
-            yaml.dump(data, file)
-        file.close()
-        repository = Repo(config['REPOSITORY_PATH'])
-        index = repository.index
-        untracked_files = repository.untracked_files
-        for el in untracked_files:
-            index.add(el)
-        index.commit('new role file')
-        origin = repository.remotes.origin
-        origin.push()
-        classes = []
-        for key in data:
-                classes.append(ClassYaml.query.filter_by(name=key).first())
-        role = RoleYaml('name', 'file.name', data, classes)
-        id = db.session.add(role)
+        role = Role(data['name'], None)
+        db.session.add(role)
         db.session.commit()
-        return id, 201
+        return Role.query.get(role.id), 201
 
 
 class ClassDetails(Resource):
@@ -140,7 +131,8 @@ class GitHook(Resource):
                 db.session.add(cls)
                 db.session.commit()
                 classes.append(cls)
-            role = Role(name, el, classes)
+            role = Role(name, el)
+            role.classes = classes
             db.session.add(role)
             db.session.commit()
         for el in removed_files:
@@ -188,10 +180,9 @@ class Role(db.Model):
     file_name = db.Column(db.String(54), unique=True, nullable=True)
     classes = db.relationship('Class', backref='role', lazy='dynamic')
 
-    def __init__(self, name, file_name, classes):
+    def __init__(self, name, file_name):
         self.name = name
         self.file_name = file_name
-        self.classes = classes
 
 
 class Class(db.Model):
