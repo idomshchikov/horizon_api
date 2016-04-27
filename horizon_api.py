@@ -48,23 +48,27 @@ class Roles(Resource):
         data_map = {}
         for el in data:
             data_map[el] = data[el]['fields']
-        file_content = data_map
-        file_name = '/roles/' + role.name + '.yaml'
-        with open(config['REPOSITORY_PATH'] + file_name, 'w+') as file:
-            yaml.safe_dump(file_content, file, default_flow_style=False)
+        file_name = 'roles/' + role.name + '.yaml'
+        with open(config['REPOSITORY_PATH'] + '/' + file_name, 'w+') as file:
+            yaml.safe_dump(data_map, file, default_flow_style=False)
         file.close()
-        repository = Repo('/Users/maestro/Documents/work/temp_git/')
+        repository = Repo(config['REPOSITORY_PATH'])
         index = repository.index
-        index.add(file_name)
+        index.add([config['REPOSITORY_PATH']+file_name])
         index.commit('update role: ' + role.name)
         repository.remotes.origin.push()
-
         role.file_name = file_name
+        classes = []
+        for key in data_map:
+            cls = Class(key, json.dumps(data_map[key]), Template.query.filter_by(name=key).first())
+            db.session.add(cls)
+            classes.append(cls)
+        if role.classes is None:
+            role.classes = []
+        role.classes.extend(classes)
+        db.session.commit()
 
-        index = repository.index
-        index.add(file_name)
-
-        return data_map, 200
+        return role.id, 200
 
 
 class Classes(Resource):
