@@ -49,9 +49,20 @@ class Roles(Resource):
         for el in data:
             data_map[el] = data[el]['fields']
         file_content = data_map
-        with open(config['REPOSITORY_PATH'] + '/roles/' + role.name + '.yaml', 'w+') as file:
-            yaml.safe_dump(file_content, file)
+        file_name = '/roles/' + role.name + '.yaml'
+        with open(config['REPOSITORY_PATH'] + file_name, 'w+') as file:
+            yaml.safe_dump(file_content, file, default_flow_style=False)
         file.close()
+        repository = Repo('/Users/maestro/Documents/work/temp_git/')
+        index = repository.index
+        index.add(file_name)
+        index.commit('update role: ' + role.name)
+        repository.remotes.origin.push()
+
+        role.file_name = file_name
+
+        index = repository.index
+        index.add(file_name)
 
         return data_map, 200
 
@@ -94,7 +105,7 @@ class ClassDetails(Resource):
             for it in cls_content:
                 fields = {'name': it, 'value': cls_content[it]}
                 fields['options'] = {}
-                d = json.loads(el.templates[0].content)
+                d = json.loads(el.templates.content)
                 fields['type'] = d[it]['type']
                 fields['options']['label'] = d[it]['label']
                 params['fields'].append(fields)
@@ -136,7 +147,7 @@ class GitHook(Resource):
             name = os.path.splitext(name[1])[0]
             classes = []
             for key in data:
-                cls = Class(key, json.dumps(data[key]), Template.query.filter_by(name=key))
+                cls = Class(key, json.dumps(data[key]), Template.query.filter_by(name=key).first())
                 db.session.add(cls)
                 db.session.commit()
                 classes.append(cls)
@@ -171,7 +182,8 @@ class Class(db.Model):
     name = db.Column(db.String(54), nullable=False)
     content = db.Column(JSON, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
-    templates = db.relationship('Template', backref='class', lazy='dynamic')
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id'))
+    templates = db.relationship('Template', backref='class', uselist=False)
 
     def __init__(self, name, content, templates):
         self.name = name
@@ -186,7 +198,6 @@ class Template(db.Model):
     file_name = db.Column(db.String(54), nullable=True)
     content = db.Column(JSON, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
-    class_id = db.Column(db.Integer, db.ForeignKey('classes.id'))
 
     def __init__(self, name, file_name, content):
         self.name = name
