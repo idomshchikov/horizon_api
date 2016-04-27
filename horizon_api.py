@@ -61,7 +61,6 @@ class Classes(Resource):
         return cls, 201
 
     def delete(self, class_id, **kwargs):
-        #cls = Class.query.get(class_id)
         cls = Class.query.filter_by(id=class_id).first_or_404()
         db.session.delete(cls)
         db.session.commit()
@@ -94,35 +93,6 @@ class Templates(Resource):
     @marshal_with(models_templates)
     def get(self, **kwargs):
         return Template.query.all()
-
-
-class RoleDetails(Resource):
-    def get(self, role_id, **kwargs):
-        role = RoleYaml.query.get(role_id)
-        responce_body = []
-        for item in role.classes:
-            yamls = {}
-            params = []
-            data = json.loads(item.content)
-            for key in data:
-                elements = {'name': key, 'value': data[key]['value'], 'type': data[key]['type'],
-                            'options': {'lable': data[key]['lable'], }}
-                params.append(elements)
-            yamls['name'] = item.name
-            yamls['fields'] = params
-            responce_body.append(yamls)
-        return responce_body, 200
-
-    def put(self, role_id, **kwargs):
-        data = request.get_json()
-        role = RoleYaml.query.get(role_id)
-        with open(config['REPOSITORY_PATH'] + '/roles/', 'w+') as file:
-            yaml.dump(data, file)
-        file.close()
-        role.content = data
-        role.classes = []
-        db.session.commit()
-        return role.id, 200
 
 
 class GitHook(Resource):
@@ -167,35 +137,6 @@ class GitHook(Resource):
 
         app.logger.debug([el.name for el in Role.query.all()])
         return request.get_json(), 200
-
-
-class RoleYaml(db.Model):
-    __tablename__ = 'role_yamls'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(54), unique=True, nullable=False)
-    file_name = db.Column(db.String(54), unique=True, nullable=True)
-    content = db.Column(JSON, nullable=True)
-    classes = db.relationship('ClassYaml', backref='roles', lazy='dynamic')
-
-    def __init__(self, name, file_name, content, classes):
-        self.name = name
-        self.file_name = file_name
-        self.content = content
-        self.classes = classes
-
-
-class ClassYaml(db.Model):
-    __tablename__ = 'class_yamls'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(54), unique=True, nullable=False)
-    file_name = db.Column(db.String(54), nullable=True)
-    content = db.Column(JSON, nullable=True)
-    role_id = db.Column(db.Integer, db.ForeignKey('role_yamls.id'))
-
-    def __init__(self, name, file_name, content):
-        self.name = name
-        self.file_name = file_name
-        self.content = content
 
 
 class Role(db.Model):
@@ -243,7 +184,6 @@ api.add_resource(Roles, '/roles')
 api.add_resource(Templates, '/templates')
 api.add_resource(Classes, '/roles/<role_id>/add_class/<template_id>', '/classes/<class_id>')
 api.add_resource(ClassDetails, '/roles/<role_id>/classes')
-api.add_resource(RoleDetails, '/roles/<role_id>')
 
 
 def create_templates():
