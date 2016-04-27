@@ -54,7 +54,7 @@ class Roles(Resource):
         file.close()
         repository = Repo(config['REPOSITORY_PATH'])
         index = repository.index
-        index.add([config['REPOSITORY_PATH']+file_name])
+        index.add([config['REPOSITORY_PATH'] + '/' + file_name])
         index.commit('update role: ' + role.name)
         repository.remotes.origin.push()
         role.file_name = file_name
@@ -63,9 +63,12 @@ class Roles(Resource):
             cls = Class(key, json.dumps(data_map[key]), Template.query.filter_by(name=key).first())
             db.session.add(cls)
             classes.append(cls)
+        if role.classes is not None:
+            for el in role.classes:
+                db.session.delete(el)
+            db.session.commit()
         role.classes = classes
         db.session.commit()
-
         return role.id, 200
 
 
@@ -95,7 +98,7 @@ class Classes(Resource):
 
 class ClassDetails(Resource):
     def get(self, role_id, **kwargs):
-        role = Role.query.get(role_id)
+        role = Role.query.filter_by(id=role_id).first_or_404()
         cls = role.classes
         response = []
         for el in cls:
@@ -129,6 +132,11 @@ class GitHook(Resource):
         file.close()
         return data
 
+    def _get_role_name(self, file_name):
+        name = file_name.split('/')
+        name = os.path.splitext(name[1])[0]
+        return name
+
     def post(self):
         added_files = []
         removed_files = []
@@ -145,22 +153,39 @@ class GitHook(Resource):
 
         for el in added_files:
             data = self._from_yaml_to_dict(el)
-            name = el.split('/')
-            name = os.path.splitext(name[1])[0]
+            name = self._get_role_name(el)
+            role = Role.query.filter_by(name=name).first()
+            if role is None:
+                role = Role(name, el)
+                classes = []
+                for key in data:
+                    cls = Class(key, json.dumps(data[key]), Template.query.filter_by(name=key).first())
+                    db.session.add(cls)
+                    db.session.commit()
+                    classes.append(cls)
+                role.classes = classes
+                db.session.add(role)
+                db.session.commit()
+        for el in removed_files:
+            name = self._get_role_name(el)
+            role = Role.query.filter_by(name=name)
+            db.session.delete(role)
+            db.session.commit()
+        for el in modified_files:
+            name = self._get_role_name(el)
+            role = Role.query.filter_by(name=name).first()
+            data = self._from_yaml_to_dict(el)
+            classes = role.classes
+            for cls in classes:
+                db.session.delete(cls)
+            db.session.commit()
             classes = []
             for key in data:
                 cls = Class(key, json.dumps(data[key]), Template.query.filter_by(name=key).first())
                 db.session.add(cls)
-                db.session.commit()
                 classes.append(cls)
-            role = Role(name, el)
             role.classes = classes
-            db.session.add(role)
             db.session.commit()
-        for el in removed_files:
-            pass
-        for el in modified_files:
-           pass
 
         app.logger.debug([el.name for el in Role.query.all()])
         return request.get_json(), 200
