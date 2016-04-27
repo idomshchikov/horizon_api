@@ -96,7 +96,7 @@ class ClassDetails(Resource):
                 fields['options'] = {}
                 d = json.loads(el.templates[0].content)
                 fields['type'] = d[it]['type']
-                fields['options']['lable'] = d[it]['lable']
+                fields['options']['label'] = d[it]['label']
                 params['fields'].append(fields)
 
             response.append(params)
