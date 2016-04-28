@@ -43,7 +43,7 @@ class Roles(Resource):
         return Role.query.get(role.id), 201
 
     def put(self, role_id, **kwargs):
-        role = Role.query.filter_by(id=role_id).first_or_404()
+        role = Role.query.get_or_404(role_id)
         data = request.get_json()
         data_map = {}
         for el in data:
@@ -75,7 +75,7 @@ class Roles(Resource):
 class Classes(Resource):
     @marshal_with(models_templates)
     def post(self, role_id, template_id):
-        role = Role.query.get(role_id)
+        role = Role.query.get_or_404(role_id)
         template = Template.query.get(template_id)
         cls_content = {}
         template_content = json.loads(template.content)
@@ -90,7 +90,7 @@ class Classes(Resource):
         return cls, 201
 
     def delete(self, class_id, **kwargs):
-        cls = Class.query.filter_by(id=class_id).first_or_404()
+        cls = Class.query.get_or_404(class_id)
         db.session.delete(cls)
         db.session.commit()
         return 204
@@ -98,7 +98,7 @@ class Classes(Resource):
 
 class ClassDetails(Resource):
     def get(self, role_id, **kwargs):
-        role = Role.query.filter_by(id=role_id).first_or_404()
+        role = Role.query.get_or_404(role_id)
         cls = role.classes
         response = []
         for el in cls:
