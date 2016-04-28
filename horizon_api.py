@@ -1,6 +1,7 @@
 import yaml
 import json
 import os
+import copy
 from git import Repo
 from flask import Flask
 from flask import request
@@ -107,14 +108,25 @@ class ClassDetails(Resource):
             params['id'] = el.id
             params['fields'] = []
             cls_content = json.loads(el.content)
+            cls_content_copy = copy.copy(cls_content)
+            template_content = el.templates.content
             for it in cls_content:
-                fields = {'name': it, 'value': cls_content[it]}
-                fields['options'] = {}
-                d = json.loads(el.templates.content)
-                fields['type'] = d[it]['type']
-                fields['options']['label'] = d[it]['label']
-                params['fields'].append(fields)
-
+                fields = {'name': it, 'value': cls_content[it], 'options': {}}
+                d = json.loads(template_content)
+                if it in d:
+                    fields['name'] = it
+                    fields['type'] = d[it]['type']
+                    fields['options']['label'] = d[it]['label']
+                    params['fields'].append(fields)
+                    cls_content_copy.pop(it)
+            c = json.loads(template_content)
+            if len(cls_content_copy) > 0:
+                custom_field = {'name': c['custom']['label'],
+                                'type': c['custom']['type']}
+                values = ['{}: {}'.format(k, v) for k, v in cls_content_copy.iteritems()]
+                custom_field['value'] = '\n'.join(values)
+                params['fields'].append(custom_field)
+            app.logger.debug(cls_content_copy)
             response.append(params)
         return response, 200
 
