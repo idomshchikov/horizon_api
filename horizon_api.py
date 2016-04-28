@@ -53,11 +53,12 @@ class Roles(Resource):
         with open(config['REPOSITORY_PATH'] + '/' + file_name, 'w+') as file:
             yaml.safe_dump(data_map, file, default_flow_style=False)
         file.close()
-        repository = Repo(config['REPOSITORY_PATH'])
-        index = repository.index
-        index.add([config['REPOSITORY_PATH'] + '/' + file_name])
-        index.commit('update role: ' + role.name)
-        repository.remotes.origin.push()
+        if not config['DEBUG']:
+            repository = Repo(config['REPOSITORY_PATH'])
+            index = repository.index
+            index.add([config['REPOSITORY_PATH'] + '/' + file_name])
+            index.commit('update role: ' + role.name)
+            repository.remotes.origin.push()
         role.file_name = file_name
         classes = []
         for key in data_map:
