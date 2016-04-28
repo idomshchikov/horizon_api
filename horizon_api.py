@@ -53,12 +53,12 @@ class Roles(Resource):
         with open(config['REPOSITORY_PATH'] + '/' + file_name, 'w+') as file:
             yaml.safe_dump(data_map, file, default_flow_style=False)
         file.close()
-        if not config['DEBUG']:
-            repository = Repo(config['REPOSITORY_PATH'])
-            index = repository.index
-            index.add([config['REPOSITORY_PATH'] + '/' + file_name])
-            index.commit('update role: ' + role.name)
-            repository.remotes.origin.push()
+
+        repository = Repo(config['REPOSITORY_PATH'])
+        index = repository.index
+        index.add([config['REPOSITORY_PATH'] + '/' + file_name])
+        index.commit('update role: ' + role.name)
+        repository.remotes.origin.push()
         role.file_name = file_name
         classes = []
         for key in data_map:
@@ -83,6 +83,7 @@ class Classes(Resource):
         template_content = json.loads(template.content)
         for key in template_content:
             cls_content[key] = template_content[key]['default']
+        cls_content.pop('custom')
         cls = Class(template.name, json.dumps(cls_content), template)
         db.session.add(cls)
         if role.classes is None:
@@ -104,29 +105,26 @@ class ClassDetails(Resource):
         cls = role.classes
         response = []
         for el in cls:
-            params = {}
-            params['name'] = el.name
-            params['id'] = el.id
-            params['fields'] = []
+            params = {'name': el.name, 'id': el.id, 'fields': []}
             cls_content = json.loads(el.content)
             cls_content_copy = copy.copy(cls_content)
             template_content = el.templates.content
             for it in cls_content:
-                fields = {'name': it, 'value': cls_content[it], 'options': {}}
+                fields = {'name': it, 'value': cls_content[it]}
                 d = json.loads(template_content)
                 if it in d:
                     fields['name'] = it
                     fields['type'] = d[it]['type']
-                    fields['options']['label'] = d[it]['label']
+                    fields['options'] = d[it]['options']
                     params['fields'].append(fields)
                     cls_content_copy.pop(it)
             c = json.loads(template_content)
-            if len(cls_content_copy) > 0:
-                custom_field = {'name': c['custom']['label'],
-                                'type': c['custom']['type']}
-                values = ['{}: {}'.format(k, v) for k, v in cls_content_copy.iteritems()]
-                custom_field['value'] = '\n'.join(values)
-                params['fields'].append(custom_field)
+            custom_field = {'name': c['custom']['label'],
+                            'type': c['custom']['type'],
+                            'options': c['custom']['options']}
+            values = ['{}: {}'.format(k, v) for k, v in cls_content_copy.iteritems()]
+            custom_field['value'] = '\n'.join(values)
+            params['fields'].append(custom_field)
             app.logger.debug(cls_content_copy)
             response.append(params)
         return response, 200
