@@ -78,7 +78,7 @@ class Classes(Resource):
     @marshal_with(models_templates)
     def post(self, role_id, template_id):
         role = Role.query.get_or_404(role_id)
-        template = Template.query.get(template_id)
+        template = Template.query.get_or_404(template_id)
         cls_content = {}
         template_content = json.loads(template.content)
         for key in template_content:
