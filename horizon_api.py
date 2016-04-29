@@ -31,6 +31,11 @@ parser = reqparse.RequestParser()
 parser.add_argument('name')
 
 
+def _subs_str(s):
+    res = re.sub(r':', ': ', s)
+    return re.sub(':\s+', ': ', res)
+
+
 class Roles(Resource):
     @marshal_with(models_templates)
     def get(self, **kwargs):
@@ -56,9 +61,8 @@ class Roles(Resource):
                     data[el]['fields'].pop(key)
                     if len(fields_copy['custom']) != 0:
                         value = fields_copy[key]
-                        matches = re.findall(r'(\w+):\s*(\d+)', value)
-                        matches = map(lambda x: (x[0], int(x[1])), matches)
-                        custom_fields = dict(matches)
+                        value = _subs_str(value)
+                        custom_fields = yaml.safe_load(value)
                         data_map[el].update(custom_fields)
             data_map[el].update(data[el]['fields'])
         file_name = 'roles/' + role.name + '.yaml'
