@@ -2,6 +2,7 @@ import yaml
 import json
 import os
 import copy
+import re
 from git import Repo
 from flask import Flask
 from flask import request
@@ -48,12 +49,22 @@ class Roles(Resource):
         data = request.get_json()
         data_map = {}
         for el in data:
-            data_map[el] = data[el]['fields']
+            data_map[el] = {}
+            fields_copy = copy.copy(data[el]['fields'])
+            for key in fields_copy:
+                if key == 'custom':
+                    data[el]['fields'].pop(key)
+                    if len(fields_copy['custom']) != 0:
+                        value = fields_copy[key]
+                        matches = re.findall(r'(\w+):\s*(\d+)', value)
+                        matches = map(lambda x: (x[0], int(x[1])), matches)
+                        custom_fields = dict(matches)
+                        data_map[el].update(custom_fields)
+            data_map[el].update(data[el]['fields'])
         file_name = 'roles/' + role.name + '.yaml'
         with open(config['REPOSITORY_PATH'] + '/' + file_name, 'w+') as file:
             yaml.safe_dump(data_map, file, default_flow_style=False)
         file.close()
-
         repository = Repo(config['REPOSITORY_PATH'])
         index = repository.index
         index.add([config['REPOSITORY_PATH'] + '/' + file_name])
