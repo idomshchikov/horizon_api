@@ -93,7 +93,7 @@ class Classes(Resource):
         cls_content = {}
         template_content = json.loads(template.content)
         for key in template_content:
-            cls_content[key] = template_content[key]['default']
+            cls_content[key] = template_content[key]['options']['initial']
         cls = Class(template.name, json.dumps(cls_content), template)
         db.session.add(cls)
         if role.classes is None:
