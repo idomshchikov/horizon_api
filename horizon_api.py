@@ -174,7 +174,7 @@ class GitHook(Resource):
         for el in added_files:
             data = self._from_yaml_to_dict(el)
             name = self._get_role_name(el)
-            role = Role.query.filter_by(name=name).first()
+            role = Role.query.filter_by(name=name).first_or_404()
             if role is None:
                 role = Role(name, el)
                 classes = []
@@ -193,7 +193,7 @@ class GitHook(Resource):
             db.session.commit()
         for el in modified_files:
             name = self._get_role_name(el)
-            role = Role.query.filter_by(name=name).first()
+            role = Role.query.filter_by(name=name).first_or_404()
             data = self._from_yaml_to_dict(el)
             classes = role.classes
             for cls in classes:
