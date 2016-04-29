@@ -118,10 +118,9 @@ class ClassDetails(Resource):
                     fields['options'] = d[it]['options']
                     params['fields'].append(fields)
                     cls_content_copy.pop(it)
-            c = json.loads(template_content)
-            custom_field = {'name': c['custom']['label'],
-                            'type': c['custom']['type'],
-                            'options': c['custom']['options']}
+            custom_field = {'name': 'custom',
+                            'type': 'text',
+                            'options': {'label': 'custom'}}
             values = ['{}: {}'.format(k, v) for k, v in cls_content_copy.iteritems()]
             custom_field['value'] = '\n'.join(values)
             params['fields'].append(custom_field)
