@@ -1,8 +1,11 @@
+from CodeWarrior.Standard_Suite import application
+
 import yaml
 import json
 import os
 import copy
 import re
+import collections
 from git import Repo
 from flask import Flask
 from flask import request
@@ -52,22 +55,29 @@ class Roles(Resource):
     def put(self, role_id, **kwargs):
         role = Role.query.get_or_404(role_id)
         data = request.get_json()
-        data_map = {}
+        data_map = {'classes': data.keys()}
+        content = {}
         for el in data:
-            data_map[el] = {}
+            content[el] = {}
             fields_copy = copy.copy(data[el]['fields'])
-            for key in fields_copy:
-                if key == 'custom':
-                    data[el]['fields'].pop(key)
-                    if len(fields_copy['custom']) != 0:
-                        value = fields_copy[key]
-                        value = _subs_str(value)
-                        custom_fields = yaml.safe_load(value)
-                        data_map[el].update(custom_fields)
-            data_map[el].update(data[el]['fields'])
+            custom_value = fields_copy['custom']
+            data[el]['fields'].pop('custom')
+            if len(custom_value) != 0:
+                custom_value = _subs_str(custom_value)
+                custom_fields = yaml.safe_load(custom_value)
+                content[el].update(custom_fields)
+                for item in custom_fields:
+                    data_map[el+'::'+item] = custom_fields[item]
+            content[el].update(data[el]['fields'])
+            app.logger.debug(data[el]['fields'])
+            fields = data[el]['fields']
+            for key in fields:
+                data_map[el+'::'+key] = fields[key]
+        app.logger.debug(content)
+        app.logger.debug(data_map)
         file_name = 'roles/' + role.name + '.yaml'
         with open(config['REPOSITORY_PATH'] + '/' + file_name, 'w+') as file:
-            yaml.safe_dump(data_map, file, default_flow_style=False)
+            yaml.safe_dump(data_map, file, explicit_start=True, default_flow_style=False)
         file.close()
         repository = Repo(config['REPOSITORY_PATH'])
         index = repository.index
@@ -76,8 +86,8 @@ class Roles(Resource):
         repository.remotes.origin.push()
         role.file_name = file_name
         classes = []
-        for key in data_map:
-            cls = Class(key, json.dumps(data_map[key]), Template.query.filter_by(name=key).first())
+        for key in content:
+            cls = Class(key, json.dumps(content[key]), Template.query.filter_by(name=key).first())
             db.session.add(cls)
             classes.append(cls)
         if role.classes is not None:
@@ -161,6 +171,21 @@ class GitHook(Resource):
         name = os.path.splitext(name[1])[0]
         return name
 
+    def _parse_key(self, key):
+        res = key.split('::')
+        res.pop(-1)
+        app.logger.debug(res)
+        if len(res) > 1:
+            res = '::'.join()
+
+            return res
+        app.logger.debug(res)
+        return res[0]
+
+    def _parse_prop(self, key):
+        res = key.split('::')
+        return res.pop(-1)
+
     def post(self):
         added_files = []
         removed_files = []
@@ -178,18 +203,31 @@ class GitHook(Resource):
         for el in added_files:
             data = self._from_yaml_to_dict(el)
             name = self._get_role_name(el)
-            role = Role.query.filter_by(name=name).first_or_404()
+            role = Role.query.filter_by(name=name).first()
             if role is None:
                 role = Role(name, el)
                 classes = []
-                for key in data:
-                    cls = Class(key, json.dumps(data[key]), Template.query.filter_by(name=key).first())
+                del data['classes']
+                od = collections.OrderedDict(sorted(data.items()))
+                content = {}
+                for key in od:
+                    app.logger.debug(key)
+                    parsed_key = self._parse_key(key)
+                    if parsed_key not in content:
+                        content[parsed_key] = {}
+                    parsed_prop = self._parse_prop(key)
+                    prop_dic = {parsed_prop: data[key]}
+                    content[parsed_key].update(prop_dic)
+                app.logger.debug(content)
+                for key in content:
+                    app.logger.debug(key)
+                    cls = Class(key, json.dumps(content[key]), Template.query.filter_by(name=key).first())
                     db.session.add(cls)
                     db.session.commit()
                     classes.append(cls)
-                role.classes = classes
-                db.session.add(role)
-                db.session.commit()
+                    role.classes = classes
+                    db.session.add(role)
+                    db.session.commit()
         for el in removed_files:
             name = self._get_role_name(el)
             role = Role.query.filter_by(name=name)
@@ -204,8 +242,20 @@ class GitHook(Resource):
                 db.session.delete(cls)
             db.session.commit()
             classes = []
-            for key in data:
-                cls = Class(key, json.dumps(data[key]), Template.query.filter_by(name=key).first())
+            del data['classes']
+            od = collections.OrderedDict(sorted(data.items()))
+            content = {}
+            for key in od:
+                app.logger.debug(key)
+                parsed_key = self._parse_key(key)
+                if parsed_key not in content:
+                    content[parsed_key] = {}
+                parsed_prop = self._parse_prop(key)
+                prop_dic = {parsed_prop: data[key]}
+                content[parsed_key].update(prop_dic)
+            app.logger.debug(content)
+            for key in content:
+                cls = Class(key, json.dumps(content[key]), Template.query.filter_by(name=key).first())
                 db.session.add(cls)
                 classes.append(cls)
             role.classes = classes
