@@ -58,8 +58,8 @@ class Roles(Resource):
         for el in data:
             content[el] = {}
             fields_copy = copy.copy(data[el]['fields'])
-            custom_value = fields_copy['custom options']
-            data[el]['fields'].pop('custom options')
+            custom_value = fields_copy['custom']
+            data[el]['fields'].pop('custom')
             if len(custom_value) != 0:
                 custom_value = _subs_str(custom_value)
                 custom_fields = yaml.safe_load(custom_value)
@@ -141,9 +141,9 @@ class ClassDetails(Resource):
                     fields['options'] = d[it]['options']
                     params['fields'].append(fields)
                     cls_content_copy.pop(it)
-            custom_field = {'name': 'custom options',
+            custom_field = {'name': 'custom',
                             'type': 'text',
-                            'options': {'label': 'custom options'}}
+                            'options': {'label': 'custom'}}
             values = ['{}: {}'.format(k, v) for k, v in cls_content_copy.iteritems()]
             custom_field['value'] = '\n'.join(values)
             params['fields'].append(custom_field)
