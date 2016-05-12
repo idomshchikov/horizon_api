@@ -58,8 +58,8 @@ class Roles(Resource):
         for el in data:
             content[el] = {}
             fields_copy = copy.copy(data[el]['fields'])
-            custom_value = fields_copy['custom']
-            data[el]['fields'].pop('custom')
+            custom_value = fields_copy['custom options']
+            data[el]['fields'].pop('custom options')
             if len(custom_value) != 0:
                 custom_value = _subs_str(custom_value)
                 custom_fields = yaml.safe_load(custom_value)
@@ -74,8 +74,9 @@ class Roles(Resource):
         app.logger.debug(content)
         app.logger.debug(data_map)
         file_name = 'roles/' + role.name + '.yaml'
+
         with open(config['REPOSITORY_PATH'] + '/' + file_name, 'w+') as file:
-            yaml.safe_dump(data_map, file, explicit_start=True, default_flow_style=False)
+            yaml.safe_dump(data_map, file,  explicit_start=True, default_flow_style=False)
         file.close()
         repository = Repo(config['REPOSITORY_PATH'])
         index = repository.index
@@ -140,9 +141,9 @@ class ClassDetails(Resource):
                     fields['options'] = d[it]['options']
                     params['fields'].append(fields)
                     cls_content_copy.pop(it)
-            custom_field = {'name': 'custom',
+            custom_field = {'name': 'custom options',
                             'type': 'text',
-                            'options': {'label': 'custom'}}
+                            'options': {'label': 'custom options'}}
             values = ['{}: {}'.format(k, v) for k, v in cls_content_copy.iteritems()]
             custom_field['value'] = '\n'.join(values)
             params['fields'].append(custom_field)
@@ -196,7 +197,9 @@ class GitHook(Resource):
 
         repository = Repo(config['REPOSITORY_PATH'])
         origin = repository.remotes.origin
+        repository.git.stash('save')
         origin.pull()
+        #repository.git.stash('pop')
 
         for el in added_files:
             data = self._from_yaml_to_dict(el)
@@ -322,13 +325,38 @@ def create_templates():
     file.close()
     content = json.dumps(data)
     ntp = Template('ntp', 'ntp.yaml', content)
-    with open(config['REPOSITORY_PATH'] + '/classes/mysql_server.yaml') as file:
+
+    with open(config['REPOSITORY_PATH'] + '/classes/mysql.yaml') as file:
         data = yaml.safe_load(file)
     file.close()
     content = json.dumps(data)
-    mysql = Template('mysql_server', 'mysql_server.yaml', content)
+    mysql = Template('mysql', 'mysql.yaml', content)
 
-    db.session.add_all([apache, ntp, mysql])
+    with open(config['REPOSITORY_PATH'] + '/classes/haproxy.yaml') as file:
+        data = yaml.safe_load(file)
+    file.close()
+    content = json.dumps(data)
+    haproxy = Template('haproxy', 'haproxy.yaml', content)
+
+    with open(config['REPOSITORY_PATH'] + '/classes/java.yaml') as file:
+        data = yaml.safe_load(file)
+    file.close()
+    content = json.dumps(data)
+    java = Template('java', 'java.yaml', content)
+
+    with open(config['REPOSITORY_PATH'] + '/classes/postgresql.yaml') as file:
+        data = yaml.safe_load(file)
+    file.close()
+    content = json.dumps(data)
+    postgresql = Template('postgresql', 'postgresql.yaml', content)
+
+    with open(config['REPOSITORY_PATH'] + '/classes/rabbitmq.yaml') as file:
+        data = yaml.safe_load(file)
+    file.close()
+    content = json.dumps(data)
+    rabbitmq = Template('rabbitmq', 'rabbitmq.yaml', content)
+
+    db.session.add_all([apache, ntp, mysql, haproxy, java, postgresql, rabbitmq])
     db.session.commit()
 
 if __name__ == '__main__':
