@@ -185,7 +185,11 @@ class GitHook(Resource):
                 create_role_db(name, el, data)
         for el in removed_files:
             name = get_role_name(el)
-            role = Role.query.filter_by(name=name)
+            role = Role.query.filter_by(name=name).first()
+            classes = role.classes
+            for cls in classes:
+                db.session.delete(cls)
+                db.session.commit()
             db.session.delete(role)
             db.session.commit()
         for el in modified_files:
