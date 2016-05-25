@@ -1,3 +1,5 @@
+from CodeWarrior.Standard_Suite import application
+
 import yaml
 import json
 import copy
@@ -220,10 +222,34 @@ class UDeployHook(Resource):
             new_role = update_role_db(new_role, data_map)
         return new_role.name, 200
 
+    def put(self, role_name, **kwargs):
+        repository = Repo(config['REPOSITORY_PATH'])
+        origin = repository.remotes.origin
+        repository.git.stash('save')
+        origin.pull()
+        role = Role.query.filter_by(name=role_name).first_or_404()
+        data_map = request.get_json()
+        app.logger.debug(data_map)
+        role_yaml = from_yaml_to_dict(role.file_name, REPOSITORY_PATH)
+        app.logger.debug(role_yaml)
+        for key in data_map:
+            if key in role_yaml:
+                role_yaml[key] = data_map[key]
+        with open(config['REPOSITORY_PATH'] + '/' + role.file_name, 'w+') as f:
+            yaml.safe_dump(role_yaml, f,  explicit_start=True, default_flow_style=False)
+
+        index = repository.index
+        index.add([config['REPOSITORY_PATH'] + '/' + role.file_name])
+        index.commit('update role: ' + role.name)
+        repository.remotes.origin.push()
+        role = update_role_db(role, role_yaml)
+        return role.name, 200
+
 
 def create_role_db(role_name, file_name, data):
     role = Role(role_name, file_name)
     classes = []
+
     del data['classes']
     od = collections.OrderedDict(sorted(data.items()))
     content = {}
@@ -320,7 +346,7 @@ api.add_resource(Roles, '/roles', '/roles/<role_id>')
 api.add_resource(Templates, '/templates')
 api.add_resource(Classes, '/roles/<role_id>/add_class/<template_id>', '/classes/<class_id>')
 api.add_resource(ClassDetails, '/roles/<role_id>/classes')
-api.add_resource(UDeployHook, '/version/<from_role>/to/<to_role>')
+api.add_resource(UDeployHook, '/version/<from_role>/to/<to_role>', '/roles/<role_name>/partial')
 
 
 def create_templates():
