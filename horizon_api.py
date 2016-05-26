@@ -233,8 +233,10 @@ class UDeployHook(Resource):
         role_yaml = from_yaml_to_dict(role.file_name, REPOSITORY_PATH)
         app.logger.debug(role_yaml)
         for key in data_map:
-            if key in role_yaml:
-                role_yaml[key] = data_map[key]
+            if key not in role_yaml:
+                parsed_key = parse_key(key)
+                role_yaml['classes'].append(parsed_key)
+            role_yaml[key] = data_map[key]
         with open(config['REPOSITORY_PATH'] + '/' + role.file_name, 'w+') as f:
             yaml.safe_dump(role_yaml, f,  explicit_start=True, default_flow_style=False)
 
