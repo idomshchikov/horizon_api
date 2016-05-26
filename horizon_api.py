@@ -1,5 +1,3 @@
-from CodeWarrior.Standard_Suite import application
-
 import yaml
 import json
 import copy
