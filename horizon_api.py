@@ -1,8 +1,6 @@
 import yaml
 import json
-import os
 import copy
-import re
 import collections
 from git import Repo
 from flask import Flask
@@ -15,6 +13,12 @@ from flask_restful import reqparse
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSON
 
+from utils.role_utils import change_role_content
+from utils.role_utils import parse_key
+from utils.role_utils import parse_prop
+from utils.role_utils import get_role_name
+from utils.role_utils import from_yaml_to_dict
+from utils.role_utils import subs_str
 
 # configuration
 app = Flask(__name__)
@@ -28,13 +32,10 @@ models_templates = {
     'name': fields.String,
 }
 
+REPOSITORY_PATH = config['REPOSITORY_PATH']
+
 parser = reqparse.RequestParser()
 parser.add_argument('name')
-
-
-def _subs_str(s):
-    res = re.sub(r':', ': ', s)
-    return re.sub(':\s+', ': ', res)
 
 
 class Roles(Resource):
@@ -53,6 +54,7 @@ class Roles(Resource):
     def put(self, role_id, **kwargs):
         role = Role.query.get_or_404(role_id)
         data = request.get_json()
+
         data_map = {'classes': data.keys()}
         content = {}
         for el in data:
@@ -61,7 +63,7 @@ class Roles(Resource):
             custom_value = fields_copy['custom']
             data[el]['fields'].pop('custom')
             if len(custom_value) != 0:
-                custom_value = _subs_str(custom_value)
+                custom_value = subs_str(custom_value)
                 custom_fields = yaml.safe_load(custom_value)
                 content[el].update(custom_fields)
                 for item in custom_fields:
@@ -77,7 +79,6 @@ class Roles(Resource):
 
         with open(config['REPOSITORY_PATH'] + '/' + file_name, 'w+') as file:
             yaml.safe_dump(data_map, file,  explicit_start=True, default_flow_style=False)
-        file.close()
         repository = Repo(config['REPOSITORY_PATH'])
         index = repository.index
         index.add([config['REPOSITORY_PATH'] + '/' + file_name])
@@ -159,31 +160,6 @@ class Templates(Resource):
 
 
 class GitHook(Resource):
-    def _from_yaml_to_dict(self, file_name):
-        with open(config['REPOSITORY_PATH'] + '/' + file_name) as file:
-                data = yaml.safe_load(file)
-        file.close()
-        return data
-
-    def _get_role_name(self, file_name):
-        name = file_name.split('/')
-        name = os.path.splitext(name[1])[0]
-        return name
-
-    def _parse_key(self, key):
-        res = key.split('::')
-        res.pop(-1)
-        app.logger.debug(res)
-        if len(res) > 1:
-            res = '::'.join()
-
-            return res
-        app.logger.debug(res)
-        return res[0]
-
-    def _parse_prop(self, key):
-        res = key.split('::')
-        return res.pop(-1)
 
     def post(self):
         added_files = []
@@ -202,68 +178,127 @@ class GitHook(Resource):
         #repository.git.stash('pop')
 
         for el in added_files:
-            data = self._from_yaml_to_dict(el)
-            name = self._get_role_name(el)
+            data = from_yaml_to_dict(el, REPOSITORY_PATH)
+            name = get_role_name(el)
             role = Role.query.filter_by(name=name).first()
             if role is None:
-                role = Role(name, el)
-                classes = []
-                del data['classes']
-                od = collections.OrderedDict(sorted(data.items()))
-                content = {}
-                for key in od:
-                    app.logger.debug(key)
-                    parsed_key = self._parse_key(key)
-                    if parsed_key not in content:
-                        content[parsed_key] = {}
-                    parsed_prop = self._parse_prop(key)
-                    prop_dic = {parsed_prop: data[key]}
-                    content[parsed_key].update(prop_dic)
-                app.logger.debug(content)
-                for key in content:
-                    app.logger.debug(key)
-                    cls = Class(key, json.dumps(content[key]), Template.query.filter_by(name=key).first())
-                    db.session.add(cls)
-                    db.session.commit()
-                    classes.append(cls)
-                    role.classes = classes
-                    db.session.add(role)
-                    db.session.commit()
+                create_role_db(name, el, data)
         for el in removed_files:
-            name = self._get_role_name(el)
-            role = Role.query.filter_by(name=name)
-            db.session.delete(role)
-            db.session.commit()
-        for el in modified_files:
-            name = self._get_role_name(el)
-            role = Role.query.filter_by(name=name).first_or_404()
-            data = self._from_yaml_to_dict(el)
+            name = get_role_name(el)
+            role = Role.query.filter_by(name=name).first()
             classes = role.classes
             for cls in classes:
                 db.session.delete(cls)
+                db.session.commit()
+            db.session.delete(role)
             db.session.commit()
-            classes = []
-            del data['classes']
-            od = collections.OrderedDict(sorted(data.items()))
-            content = {}
-            for key in od:
-                app.logger.debug(key)
-                parsed_key = self._parse_key(key)
-                if parsed_key not in content:
-                    content[parsed_key] = {}
-                parsed_prop = self._parse_prop(key)
-                prop_dic = {parsed_prop: data[key]}
-                content[parsed_key].update(prop_dic)
-            app.logger.debug(content)
-            for key in content:
-                cls = Class(key, json.dumps(content[key]), Template.query.filter_by(name=key).first())
-                db.session.add(cls)
-                classes.append(cls)
-            role.classes = classes
-            db.session.commit()
-
+        for el in modified_files:
+            name = get_role_name(el)
+            role = Role.query.filter_by(name=name).first_or_404()
+            data = from_yaml_to_dict(el, REPOSITORY_PATH)
+            update_role_db(role, data)
         app.logger.debug([el.name for el in Role.query.all()])
         return request.get_json(), 200
+
+
+class UDeployHook(Resource):
+
+    def post(self, from_role, to_role, **kwargs):
+        Role.query.filter_by(name=from_role).first_or_404()
+        new_role = Role.query.filter_by(name=to_role).first()
+        data_map = change_role_content(from_role, to_role, REPOSITORY_PATH)
+        file_name = 'roles/' + to_role + '.yaml'
+        repository = Repo(config['REPOSITORY_PATH'])
+        index = repository.index
+        index.add([config['REPOSITORY_PATH'] + '/' + file_name])
+        index.commit('update role: ' + to_role)
+        repository.remotes.origin.push()
+
+        if new_role is None:
+            new_role = create_role_db(to_role, file_name, data_map)
+        else:
+            new_role = update_role_db(new_role, data_map)
+        return new_role.name, 200
+
+    def put(self, role_name, **kwargs):
+        repository = Repo(config['REPOSITORY_PATH'])
+        origin = repository.remotes.origin
+        repository.git.stash('save')
+        origin.pull()
+        role = Role.query.filter_by(name=role_name).first_or_404()
+        data_map = request.get_json()
+        app.logger.debug(data_map)
+        role_yaml = from_yaml_to_dict(role.file_name, REPOSITORY_PATH)
+        app.logger.debug(role_yaml)
+        for key in data_map:
+            if key not in role_yaml:
+                parsed_key = parse_key(key)
+                role_yaml['classes'].append(parsed_key)
+            role_yaml[key] = data_map[key]
+        with open(config['REPOSITORY_PATH'] + '/' + role.file_name, 'w+') as f:
+            yaml.safe_dump(role_yaml, f,  explicit_start=True, default_flow_style=False)
+
+        index = repository.index
+        index.add([config['REPOSITORY_PATH'] + '/' + role.file_name])
+        index.commit('update role: ' + role.name)
+        repository.remotes.origin.push()
+        role = update_role_db(role, role_yaml)
+        return role.name, 200
+
+
+def create_role_db(role_name, file_name, data):
+    role = Role(role_name, file_name)
+    classes = []
+
+    del data['classes']
+    od = collections.OrderedDict(sorted(data.items()))
+    content = {}
+    for key in od:
+        app.logger.debug(key)
+        parsed_key = parse_key(key)
+        if parsed_key not in content:
+            content[parsed_key] = {}
+        parsed_prop = parse_prop(key)
+        prop_dic = {parsed_prop: data[key]}
+        content[parsed_key].update(prop_dic)
+        app.logger.debug(content)
+    for key in content:
+        app.logger.debug(key)
+        cls = Class(key, json.dumps(content[key]), Template.query.filter_by(name=key).first())
+        db.session.add(cls)
+        db.session.commit()
+        classes.append(cls)
+        role.classes = classes
+        db.session.add(role)
+        db.session.commit()
+    return role
+
+
+def update_role_db(role, data):
+    classes = role.classes
+    for cls in classes:
+        db.session.delete(cls)
+    db.session.commit()
+    classes = []
+    del data['classes']
+    od = collections.OrderedDict(sorted(data.items()))
+    content = {}
+    for key in od:
+        app.logger.debug(key)
+        parsed_key = parse_key(key)
+        if parsed_key not in content:
+            content[parsed_key] = {}
+        parsed_prop = parse_prop(key)
+        prop_dic = {parsed_prop: data[key]}
+        content[parsed_key].update(prop_dic)
+    app.logger.debug(content)
+    for key in content:
+        cls = Class(key, json.dumps(content[key]), Template.query.filter_by(name=key).first())
+        db.session.add(cls)
+        classes.append(cls)
+    role.classes = classes
+    db.session.commit()
+    return role
 
 
 class Role(db.Model):
@@ -311,6 +346,7 @@ api.add_resource(Roles, '/roles', '/roles/<role_id>')
 api.add_resource(Templates, '/templates')
 api.add_resource(Classes, '/roles/<role_id>/add_class/<template_id>', '/classes/<class_id>')
 api.add_resource(ClassDetails, '/roles/<role_id>/classes')
+api.add_resource(UDeployHook, '/version/<from_role>/to/<to_role>', '/roles/<role_name>/partial')
 
 
 def create_templates():
