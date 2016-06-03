@@ -396,4 +396,4 @@ def create_templates():
     db.session.commit()
 
 if __name__ == '__main__':
-    app.run(host=config['HOST'])
+    app.run(host=config['HOST'], port=config['PORT'])

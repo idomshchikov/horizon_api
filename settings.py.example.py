@@ -4,4 +4,5 @@ class Config(object):
     SQLALCHEMY_DATABASE_URI = 'postgresql+psycopg2://pavlo:@localhost/horizondb'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     HOST = '127.0.0.1'
+    PORT = 5555
     REPOSITORY_PATH = '/Users/pavlo/code/temp_yamls'
